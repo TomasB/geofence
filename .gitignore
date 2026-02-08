@@ -33,6 +33,9 @@ go.work
 .env.local
 .env.*.local
 
+# Kubernetes secrets (never commit)
+deployments/k8s/secret.yaml
+
 # MaxMind Database files (do not commit copyrighted data)
 *.mmdb
 testdata/*.mmdb

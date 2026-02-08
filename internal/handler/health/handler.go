@@ -7,11 +7,13 @@ import (
 )
 
 // Handler manages health check endpoints
-type Handler struct{}
+type Handler struct {
+	readyFn func() error
+}
 
 // NewHandler creates a new health check handler
-func NewHandler() *Handler {
-	return &Handler{}
+func NewHandler(readyFn func() error) *Handler {
+	return &Handler{readyFn: readyFn}
 }
 
 // Health is the liveness probe endpoint
@@ -25,7 +27,16 @@ func (h *Handler) Health(c *gin.Context) {
 // Ready is the readiness probe endpoint
 // GET /ready
 func (h *Handler) Ready(c *gin.Context) {
-	// Placeholder for future readiness checks
+	if h.readyFn != nil {
+		if err := h.readyFn(); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status": "not ready",
+				"error":  err.Error(),
+			})
+			return
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": "ready",
 	})

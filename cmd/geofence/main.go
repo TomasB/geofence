@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,8 +13,11 @@ import (
 
 	"github.com/TomasB/geofence/internal/data"
 	"github.com/TomasB/geofence/internal/handler/check"
+	grpcHandler "github.com/TomasB/geofence/internal/handler/grpc"
 	"github.com/TomasB/geofence/internal/handler/health"
+	geofencev1 "github.com/TomasB/geofence/pkg/geofence/v1"
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -30,6 +34,11 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
+	}
+
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "50051"
 	}
 
 	// Set Gin mode based on log level
@@ -63,7 +72,17 @@ func main() {
 	slog.Info("MMDB loaded", "path", mmdbPath)
 
 	// Register health endpoints
-	healthHandler := health.NewHandler()
+	healthHandler := health.NewHandler(func() error {
+		readyIP := net.ParseIP("8.8.8.8")
+		if readyIP == nil {
+			return errors.New("ready check IP is invalid")
+		}
+		_, err := lookup.LookupCountry(readyIP)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	router.GET("/health", healthHandler.Health)
 	router.GET("/ready", healthHandler.Ready)
 
@@ -80,11 +99,31 @@ func main() {
 		Handler: router,
 	}
 
-	// Start server in a goroutine
+	// Create gRPC server
+	grpcServer := grpc.NewServer()
+	grpcSvc := grpcHandler.NewHandler(lookup)
+	geofencev1.RegisterGeofenceServiceServer(grpcServer, grpcSvc)
+
+	grpcListener, err := net.Listen("tcp", ":"+grpcPort)
+	if err != nil {
+		slog.Error("failed to listen for gRPC", "port", grpcPort, "error", err)
+		os.Exit(1)
+	}
+
+	// Start HTTP server in a goroutine
 	go func() {
 		slog.Info("service started", "port", port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("server failed to start", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Start gRPC server in a goroutine
+	go func() {
+		slog.Info("grpc service started", "port", grpcPort)
+		if err := grpcServer.Serve(grpcListener); err != nil {
+			slog.Error("grpc server failed", "error", err)
 			os.Exit(1)
 		}
 	}()
@@ -99,6 +138,8 @@ func main() {
 	// Graceful shutdown with 30s timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	grpcServer.GracefulStop()
 
 	if err := srv.Shutdown(ctx); err != nil {
 		slog.Error("server forced to shutdown", "error", err)

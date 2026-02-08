@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package geofence.v1;
+
+option go_package = "github.com/TomasB/geofence/pkg/geofence/v1;geofencev1";
+
+message CheckRequest {
+  string ip = 1;
+  repeated string allowed_countries = 2;
+}
+
+message CheckResponse {
+  bool allowed = 1;
+  string country = 2;
+  string error = 3;
+}
+
+service GeofenceService {
+  rpc Check(CheckRequest) returns (CheckResponse);
+}

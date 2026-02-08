@@ -3,14 +3,16 @@ services:
     build: .
     ports:
       - "8080:8080"
+      - "50051:50051"
     environment:
       - PORT=8080
       - LOG_LEVEL=info
       - MMDB_PATH=/data/GeoLite2-Country-Test.mmdb
+      - GRPC_PORT=50051
     volumes:
       - ./testdata:/data:ro
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--method=GET", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--method=GET", "-O", "/dev/null", "http://localhost:8080/ready"]
       interval: 10s
       timeout: 5s
       retries: 3

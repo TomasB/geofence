@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geofence
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: geofence
+  template:
+    metadata:
+      labels:
+        app: geofence
+    spec:
+      volumes:
+        - name: mmdb-data
+          emptyDir: {}
+      initContainers:
+        - name: geoipupdate
+          image: maxmindinc/geoipupdate:latest
+          env:
+            - name: GEOIPUPDATE_ACCOUNT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: geofence-secret
+                  key: MAXMIND_ACCOUNT_ID
+            - name: GEOIPUPDATE_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: geofence-secret
+                  key: MAXMIND_LICENSE_KEY
+            - name: GEOIPUPDATE_EDITION_IDS
+              value: GeoLite2-Country
+            - name: GEOIPUPDATE_DB_DIR
+              value: /data
+          volumeMounts:
+            - name: mmdb-data
+              mountPath: /data
+      containers:
+        - name: geofence
+          image: geofence:latest
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: grpc
+              containerPort: 50051
+          envFrom:
+            - configMapRef:
+                name: geofence-config
+          env:
+            - name: MMDB_PATH
+              valueFrom:
+                secretKeyRef:
+                  name: geofence-secret
+                  key: MMDB_PATH
+          volumeMounts:
+            - name: mmdb-data
+              mountPath: /data
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3

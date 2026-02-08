@@ -35,11 +35,15 @@ GeoFence is a microservice designed for Kubernetes deployment that provides REST
 │   ├── data/              # Data access layer (MaxMind integration)
 │   │   ├── lookup.go      # CountryLookup interface
 │   │   └── mmdb_reader.go # MaxMind MMDB reader implementation
-│   └── handler/           # HTTP handlers
+│   └── handler/           # REST and gRPC handlers
 │       ├── health/        # Health check endpoints
-│       └── check/         # IP country check endpoints
+│       ├── check/         # IP country check endpoints
+│       └── grpc/          # gRPC service handler
 ├── deployments/
-│   └── k8s/               # Kubernetes manifests (future phases)
+│   └── k8s/               # Kubernetes manifests
+├── pkg/
+│   └── geofence/
+│       └── v1/            # Protobuf definitions and generated code
 ├── testdata/              # Test data (MMDB files)
 ├── Dockerfile             # Multi-stage Docker build
 ├── docker-compose.yaml    # Docker Compose for local testing
@@ -75,11 +79,12 @@ go mod download
 ### 4. Run the Service
 
 ```bash
-# Run with default settings (port 8080, info log level)
-go run cmd/geofence/main.go
+# Run with required MMDB path and defaults (HTTP 8080, gRPC 50051)
+MMDB_PATH=./testdata/GeoLite2-Country-Test.mmdb go run cmd/geofence/main.go
 
 # Or with custom configuration
-LOG_LEVEL=debug PORT=3000 go run cmd/geofence/main.go
+LOG_LEVEL=debug PORT=3000 GRPC_PORT=50051 MMDB_PATH=./testdata/GeoLite2-Country-Test.mmdb \
+  go run cmd/geofence/main.go
 ```
 
 ### 5. Test the Endpoints
@@ -134,6 +139,7 @@ The service is configured via environment variables following the [12-factor app
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8080` | HTTP server port |
+| `GRPC_PORT` | `50051` | gRPC server port |
 | `LOG_LEVEL` | `info` | Logging level: `debug`, `info`, `warn`, `error` |
 | `MMDB_PATH` | _(required)_ | Path to MaxMind MMDB file |
 
@@ -165,12 +171,61 @@ docker-compose down
 ```bash
 docker run -d \
   -p 8080:8080 \
+  -p 50051:50051 \
   -e PORT=8080 \
+  -e GRPC_PORT=50051 \
   -e LOG_LEVEL=info \
   -e MMDB_PATH=/data/GeoLite2-Country-Test.mmdb \
   -v $(pwd)/testdata/GeoLite2-Country-Test.mmdb:/data/GeoLite2-Country-Test.mmdb:ro \
   geofence:latest
 ```
+
+## Kubernetes Deployment
+
+### Required Secrets
+
+The service requires the following secrets to be provided as Kubernetes Secrets:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MAXMIND_ACCOUNT_ID` | Yes | Your MaxMind account ID (get from https://www.maxmind.com) |
+| `MAXMIND_LICENSE_KEY` | Yes | Your MaxMind license key |
+
+Configuration values (like `MMDB_PATH`, `LOG_LEVEL`, ports) are provided via ConfigMap.
+
+### Creating and Applying Secrets
+
+Create the secret using `kubectl`:
+
+```bash
+kubectl create secret generic geofence-secret \
+  --from-literal=MAXMIND_ACCOUNT_ID=your-account-id \
+  --from-literal=MAXMIND_LICENSE_KEY=your-license-key
+```
+
+Or define a manifest (note: **never commit to git**):
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: geofence-secret
+type: Opaque
+stringData:
+  MAXMIND_ACCOUNT_ID: "your-account-id"
+  MAXMIND_LICENSE_KEY: "your-license-key"
+```
+
+Then apply all manifests:
+
+```bash
+kubectl apply -f deployments/k8s/secret.yaml      # Create/update the secret
+kubectl apply -f deployments/k8s/configmap.yaml   # Create/update ConfigMap
+kubectl apply -f deployments/k8s/deployment.yaml  # Deploy the application
+kubectl apply -f deployments/k8s/service.yaml     # Expose the service
+```
+
+**⚠️ Security**: The `secret.yaml` file is listed in `.gitignore` and must never be committed to version control. Use `kubectl create secret` or store credentials in a secret management system (HashiCorp Vault, AWS Secrets Manager, etc.) for production.
 
 ## API Reference
 
@@ -213,6 +268,37 @@ Check if an IP address is from an allowed country.
   "country": "",
   "error": "lookup failed"
 }
+```
+
+## gRPC Reference
+
+Service: `geofence.v1.GeofenceService`
+
+### Check
+
+**Request:**
+```json
+{
+  "ip": "216.160.83.56",
+  "allowed_countries": ["US", "CA"]
+}
+```
+
+**Response:**
+```json
+{
+  "allowed": true,
+  "country": "US",
+  "error": ""
+}
+```
+
+**Example (grpcurl):**
+```bash
+grpcurl -plaintext \
+  -proto pkg/geofence/v1/geofence.proto \
+  -d '{"ip":"216.160.83.56","allowed_countries":["US"]}' \
+  localhost:50051 geofence.v1.GeofenceService/Check
 ```
 
 ## Building
@@ -262,21 +348,16 @@ The service implements graceful shutdown:
 
 ## Development Status
 
-**Current Phase**: Phase 2 - REST API & MaxMind Integration ✅
+**Current Phase**: Phase 3 - gRPC & Kubernetes ✅
 
-- [x] MaxMind MMDB integration (geoip2-golang)
-- [x] CountryLookup interface for composable data layer
-- [x] MmdbReader implementation for MMDB lookups
-- [x] REST API with POST /api/v1/check endpoint
-- [x] IP validation and country code matching
-- [x] Unit tests with mock CountryLookup
-- [x] Integration tests with real MMDB
-- [x] Docker containerization (multi-stage build)
-- [x] Docker Compose for local testing
-- [x] Environment variable configuration (LOG_LEVEL, MMDB_PATH, PORT)
-- [x] Structured logging with debug-level request logging
+- [x] gRPC service definition and generated stubs
+- [x] gRPC handler using CountryLookup
+- [x] gRPC server with GRPC_PORT configuration
+- [x] /ready endpoint validates MMDB access
+- [x] Docker Compose exposes gRPC port
+- [x] Kubernetes manifests (ConfigMap, Secret, Deployment, Service)
 
-**Next Phase**: Phase 3 - gRPC & Kubernetes
+**Next Phase**: Phase 4 - Database Hot Reload — In-Process Atomic
 
 See [PLAN.md](PLAN.md) for the complete implementation roadmap.
 
@@ -295,7 +376,7 @@ Liveness probe endpoint for Kubernetes.
 ```
 
 #### GET /ready
-Readiness probe endpoint for Kubernetes. Currently a placeholder; will verify MMDB availability in Phase 3.
+Readiness probe endpoint for Kubernetes. Returns 503 if the MMDB is missing or cannot be read.
 
 **Response**:
 ```json

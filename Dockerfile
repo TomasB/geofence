@@ -33,13 +33,14 @@ USER geofence
 
 # Default environment values
 ENV PORT=8080 \
+    GRPC_PORT=50051 \
     LOG_LEVEL=info \
     MMDB_PATH=/data/GeoLite2-Country.mmdb
 
 # Health check
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=5s \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT}/health || exit 1
+    CMD wget --no-verbose --tries=1 --method=GET -O /dev/null http://localhost:${PORT}/health || exit 1
 
-EXPOSE 8080
+EXPOSE 8080 50051
 
 ENTRYPOINT ["/app/geofence"]
