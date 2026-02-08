@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/TomasB/geofence/internal/data"
+	"github.com/TomasB/geofence/internal/handler/check"
 	"github.com/TomasB/geofence/internal/handler/health"
 	"github.com/gin-gonic/gin"
 )
@@ -44,10 +46,33 @@ func main() {
 	router.Use(ginLogger(logger))
 	router.Use(gin.Recovery())
 
+	// Load MaxMind MMDB
+	mmdbPath := os.Getenv("MMDB_PATH")
+	if mmdbPath == "" {
+		slog.Error("MMDB_PATH environment variable is required")
+		os.Exit(1)
+	}
+
+	lookup, err := data.NewMmdbReader(mmdbPath)
+	if err != nil {
+		slog.Error("failed to open MMDB", "path", mmdbPath, "error", err)
+		os.Exit(1)
+	}
+	defer lookup.Close()
+
+	slog.Info("MMDB loaded", "path", mmdbPath)
+
 	// Register health endpoints
 	healthHandler := health.NewHandler()
 	router.GET("/health", healthHandler.Health)
 	router.GET("/ready", healthHandler.Ready)
+
+	// Register API endpoints
+	checkHandler := check.NewHandler(lookup)
+	api := router.Group("/api/v1")
+	{
+		api.POST("/check", checkHandler.Check)
+	}
 
 	// Create HTTP server
 	srv := &http.Server{

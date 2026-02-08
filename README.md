@@ -32,13 +32,17 @@ GeoFence is a microservice designed for Kubernetes deployment that provides REST
 ├── cmd/
 │   └── geofence/          # Main application entry point
 ├── internal/
-│   ├── api/               # API handlers (future: REST endpoints)
-│   ├── app/
-│   │   └── health/        # Health check endpoints
-│   └── data/              # Data access layer (future: MaxMind integration)
+│   ├── data/              # Data access layer (MaxMind integration)
+│   │   ├── lookup.go      # CountryLookup interface
+│   │   └── mmdb_reader.go # MaxMind MMDB reader implementation
+│   └── handler/           # HTTP handlers
+│       ├── health/        # Health check endpoints
+│       └── check/         # IP country check endpoints
 ├── deployments/
 │   └── k8s/               # Kubernetes manifests (future phases)
 ├── testdata/              # Test data (MMDB files)
+├── Dockerfile             # Multi-stage Docker build
+├── docker-compose.yaml    # Docker Compose for local testing
 ├── go.mod                 # Go module definition
 ├── go.sum                 # Go dependencies lock file
 ├── PLAN.md                # Implementation roadmap
@@ -80,6 +84,8 @@ LOG_LEVEL=debug PORT=3000 go run cmd/geofence/main.go
 
 ### 5. Test the Endpoints
 
+#### Health Endpoints
+
 ```bash
 # Health check (liveness probe)
 curl http://localhost:8080/health
@@ -94,6 +100,33 @@ Expected responses:
 {"status":"ready"}
 ```
 
+#### API Endpoints
+
+```bash
+# Check if an IP is allowed for given countries
+curl -X POST http://localhost:8080/api/v1/check \
+  -H "Content-Type: application/json" \
+  -d '{"ip":"216.160.83.56","allowed_countries":["US","CA"]}'
+```
+
+Example response (IP is from US, allowed):
+```json
+{
+  "allowed": true,
+  "country": "US",
+  "error": ""
+}
+```
+
+Example response (IP is from GB, not allowed for US/CA):
+```json
+{
+  "allowed": false,
+  "country": "GB",
+  "error": ""
+}
+```
+
 ## Configuration
 
 The service is configured via environment variables following the [12-factor app](https://12factor.net/) methodology:
@@ -102,7 +135,85 @@ The service is configured via environment variables following the [12-factor app
 |----------|---------|-------------|
 | `PORT` | `8080` | HTTP server port |
 | `LOG_LEVEL` | `info` | Logging level: `debug`, `info`, `warn`, `error` |
-| `MMDB_PATH` | _(future)_ | Path to MaxMind MMDB file |
+| `MMDB_PATH` | _(required)_ | Path to MaxMind MMDB file |
+
+## Docker
+
+### Build the Docker Image
+
+```bash
+docker build -t geofence:latest .
+```
+
+### Run with Docker Compose (Recommended for Development)
+
+```bash
+# Start the service with test database
+docker-compose up --build
+
+# Test the API
+curl -X POST http://localhost:8080/api/v1/check \
+  -H "Content-Type: application/json" \
+  -d '{"ip":"216.160.83.56","allowed_countries":["US"]}'
+
+# Stop the service
+docker-compose down
+```
+
+### Run Docker Container Directly
+
+```bash
+docker run -d \
+  -p 8080:8080 \
+  -e PORT=8080 \
+  -e LOG_LEVEL=info \
+  -e MMDB_PATH=/data/GeoLite2-Country-Test.mmdb \
+  -v $(pwd)/testdata/GeoLite2-Country-Test.mmdb:/data/GeoLite2-Country-Test.mmdb:ro \
+  geofence:latest
+```
+
+## API Reference
+
+### POST /api/v1/check
+
+Check if an IP address is from an allowed country.
+
+**Request:**
+```json
+{
+  "ip": "216.160.83.56",
+  "allowed_countries": ["US", "CA"]
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "allowed": true,
+  "country": "US",
+  "error": ""
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request**: Invalid IP or missing/empty allowed_countries
+```json
+{
+  "allowed": false,
+  "country": "",
+  "error": "invalid IP address"
+}
+```
+
+- **500 Internal Server Error**: MMDB lookup failure
+```json
+{
+  "allowed": false,
+  "country": "",
+  "error": "lookup failed"
+}
+```
 
 ## Building
 
@@ -151,15 +262,21 @@ The service implements graceful shutdown:
 
 ## Development Status
 
-**Current Phase**: Phase 1 - Project Setup & Health Endpoints ✅
+**Current Phase**: Phase 2 - REST API & MaxMind Integration ✅
 
-- [x] Project initialization
-- [x] Health endpoints (`/health`, `/ready`)
-- [x] Structured logging with slog
-- [x] Graceful shutdown
-- [x] Unit tests
+- [x] MaxMind MMDB integration (geoip2-golang)
+- [x] CountryLookup interface for composable data layer
+- [x] MmdbReader implementation for MMDB lookups
+- [x] REST API with POST /api/v1/check endpoint
+- [x] IP validation and country code matching
+- [x] Unit tests with mock CountryLookup
+- [x] Integration tests with real MMDB
+- [x] Docker containerization (multi-stage build)
+- [x] Docker Compose for local testing
+- [x] Environment variable configuration (LOG_LEVEL, MMDB_PATH, PORT)
+- [x] Structured logging with debug-level request logging
 
-**Next Phase**: Phase 2 - REST API & MaxMind Integration
+**Next Phase**: Phase 3 - gRPC & Kubernetes
 
 See [PLAN.md](PLAN.md) for the complete implementation roadmap.
 
@@ -178,7 +295,7 @@ Liveness probe endpoint for Kubernetes.
 ```
 
 #### GET /ready
-Readiness probe endpoint for Kubernetes. Currently a placeholder; will verify MMDB availability in Phase 2.
+Readiness probe endpoint for Kubernetes. Currently a placeholder; will verify MMDB availability in Phase 3.
 
 **Response**:
 ```json
@@ -186,6 +303,30 @@ Readiness probe endpoint for Kubernetes. Currently a placeholder; will verify MM
   "status": "ready"
 }
 ```
+
+### POST /api/v1/check
+IP geolocation validation endpoint.
+
+**Request**:
+```json
+{
+  "ip": "216.160.83.56",
+  "allowed_countries": ["US", "CA"]
+}
+```
+
+**Response (200)**:
+```json
+{
+  "allowed": true,
+  "country": "US",
+  "error": ""
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: Invalid IP format or missing allowed_countries array
+- `500 Internal Server Error`: MMDB lookup failure (logged with details)
 
 ## License
 

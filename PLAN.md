@@ -28,7 +28,7 @@ Follow 12factor.net for best practices
 - [ ] HTTP REST API with single IP check endpoint (`POST /api/v1/check`).
 - [ ] `POST /api/v1/check` will accept JSON: `{ "ip": "214.78.120.0", "allowed_countries": ["US","CA"] }`.
     - Example response: `{ "allowed": true, "country": "US", "error": "" }`.
-- [ ] REST handler in `internal/api/handler.go` accepts `CountryLookup` interface (not concrete MMDB reader).
+- [ ] REST handler in `internal/handler/check/handler.go` accepts `CountryLookup` interface (not concrete MMDB reader).
 - [ ] Log incoming request body only when `LOG_LEVEL=debug` (do not log request bodies at higher log levels).
 - [ ] exports environment variables to enable configuration in Dockerfile:
     - `LOG_LEVEL`
@@ -46,10 +46,10 @@ Follow 12factor.net for best practices
 
 - [ ] Create `pkg/geofence/v1/geofence.proto` with CheckRequest, CheckResponse, and GeofenceService with Check() RPCs.
 - [ ] Generate gRPC code: `protoc --go_out=. --go-grpc_out=. pkg/geofence/v1/geofence.proto`.
-- [ ] gRPC handler in `internal/app/grpc/handler.go` accepts same `CountryLookup` interface (reuse from Phase 2; no code duplication).
+- [ ] gRPC handler in `internal/handler/grpc/handler.go` accepts same `CountryLookup` interface (reuse from Phase 2; no code duplication).
 - [ ] gRPC will launch on specified port in `GRPC_PORT` env variable
 - [ ] Update `cmd/geofence/main.go`: start both REST (port 8080) and gRPC (port 50051) servers concurrently, handle graceful shutdown for both.
-- [ ] Update `/ready` endpoint to verify MMDB file exists and is parse-able; return 503 if missing/corrupt.
+- [ ] Update `/ready` endpoint to succeed only when database connection is successfully created, and we are able to access data; return 503 if missing/corrupt.
 - [ ] Create K8s manifests in `deployments/k8s/`:
   - `secret.yaml`: contains sensitive configuration: `MMDB_PATH` (path where init-container downloads MMDB), MaxMind license key/account ID for geoipupdate.
   - `deployment.yaml`: 3 replicas, init-container will download `GeoLite2-Country.mmdb` to a shared volume location, it will use Kubernetes Secret to retrieve any authentication keys required by MaxMind to access their lite version of database, liveness/readiness probes on `/health` and `/ready`.
@@ -66,7 +66,7 @@ Follow 12factor.net for best practices
 - [ ] Refactor `internal/data/mmdb_reader.go` to use `atomic.Pointer[*geoip2.Reader]` for thread-safe hot-swap (zero downtime).
 - [ ] Implement file watcher in `internal/data/watcher.go`: monitor MMDB file on shared volume, trigger atomic reload on change.
 - [ ] Create K8s manifest `deployments/k8s/cronjob.yaml`: geoipupdate container runs daily, writes fresh MMDB to shared PVC. MaxMind license key stored in K8s Secret.
-- [ ] Update `internal/app/health.go`: `/ready` endpoint reports MMDB version/timestamp so ops can verify updates completed.
+- [ ] Update `internal/handler/health/handler.go`: `/ready` endpoint reports MMDB version/timestamp so ops can verify updates completed.
 - [ ] Documentation in `docs/database-updates.md`: setup MaxMind credentials, CronJob configuration, verification procedures, rollback mechanism.
 
 **Deliverables**: Automated daily database updates via CronJob, zero-downtime in-process reload, operational documentation
