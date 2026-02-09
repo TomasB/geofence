@@ -63,13 +63,14 @@ Follow 12factor.net for best practices
 
 ## Phase 4: Database Hot Reload — In-Process Atomic
 
-- [ ] Refactor `internal/data/mmdb_reader.go` to use `atomic.Pointer[*geoip2.Reader]` for thread-safe hot-swap (zero downtime).
-- [ ] Implement file watcher in `internal/data/watcher.go`: monitor MMDB file on shared volume, trigger atomic reload on change.
+- [x] Refactor `internal/data/mmdb_reader.go` to use `atomic.Pointer[geoip2.Reader]` for thread-safe hot-swap (zero downtime). Hot-reload is fully encapsulated inside `MmdbReader` — no changes to `CountryLookup` interface, handlers, or `main.go`.
+- [x] Implement directory-level file watcher inside `MmdbReader`: watches parent directory for write/create events on the MMDB file, correctly handles both in-place writes and atomic rename-into-place (geoipupdate, K8s volume mounts). Watcher lifecycle managed internally by `NewMmdbReader`/`Close`.
+- [x] Graceful degradation: if file watcher fails to start, reader still works (hot-reload disabled with warning). If reload fails (corrupt file), old reader stays active.
+- [x] Unit tests: hot-reload with atomic file replacement, failed reload with invalid file preserves old reader.
 - [ ] Create K8s manifest `deployments/k8s/cronjob.yaml`: geoipupdate container runs daily, writes fresh MMDB to shared PVC. MaxMind license key stored in K8s Secret.
-- [ ] Update `internal/handler/health/handler.go`: `/ready` endpoint reports MMDB version/timestamp so ops can verify updates completed.
 - [ ] Documentation in `docs/database-updates.md`: setup MaxMind credentials, CronJob configuration, verification procedures, rollback mechanism.
 
-**Status**: ⏳ NOT STARTED - Current implementation uses init container only; zero-downtime hot reload not yet implemented
+**Status**: ✅ CORE COMPLETE - Atomic hot-reload fully implemented & tested; K8s CronJob and docs pending
 
 ## Phase 5: Operational Excellence
 

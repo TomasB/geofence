@@ -3,6 +3,7 @@ module github.com/TomasB/geofence
 go 1.25.7
 
 require (
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-gonic/gin v1.11.0
 	github.com/oschwald/geoip2-golang v1.13.0
 	google.golang.org/grpc v1.78.0
