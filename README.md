@@ -10,7 +10,7 @@ GeoFence is a microservice designed for Kubernetes deployment that provides REST
 
 ### Development Environment
 
-- **Go**: >= 1.22 ([download](https://golang.org/dl/))
+- **Go**: >= 1.25.7 ([download](https://golang.org/dl/))
 - **Git**: for version control
 - **Make** (optional): for build automation
 
