@@ -237,27 +237,30 @@ kubectl create secret generic geofence-secret \
 
 Or define a manifest (note: **never commit to git**):
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: geofence-secret
-type: Opaque
-stringData:
-  MAXMIND_ACCOUNT_ID: "your-account-id"
-  MAXMIND_LICENSE_KEY: "your-license-key"
-```
+### Kubernetes Deployment
 
-Then apply all manifests:
+⚠️ Before deploying, review [docs/database-updates.md](docs/database-updates.md) for complete database and secret setup instructions.
+
+1. **Create MaxMind Kubernetes Secret**
+
+Use one of the recommended approaches below:
+
+- **External Secrets Operator** (Recommended for production)
+- **Sealed Secrets** (Good for git-based workflows)
+- **kubectl create secret** (Development only)
+
+See [database-updates.md: Initial Deployment - Step 1](docs/database-updates.md#step-1-create-kubernetes-secret-external-secrets-management) for detailed instructions.
+
+2. **Apply Kubernetes manifests:**
 
 ```bash
-kubectl apply -f deployments/k8s/secret.yaml      # Create/update the secret
 kubectl apply -f deployments/k8s/configmap.yaml   # Create/update ConfigMap
 kubectl apply -f deployments/k8s/deployment.yaml  # Deploy the application
 kubectl apply -f deployments/k8s/service.yaml     # Expose the service
+kubectl apply -f deployments/k8s/cronjob.yaml     # Deploy database auto-updater
 ```
 
-**⚠️ Security**: The `secret.yaml` file is listed in `.gitignore` and must never be committed to version control. Use `kubectl create secret` or store credentials in a secret management system (HashiCorp Vault, AWS Secrets Manager, etc.) for production.
+**⚠️ Security Notice**: Never commit secrets to version control. Use external secret management (External Secrets Operator, Sealed Secrets, Vault, etc.) for production environments.
 
 ## API Reference
 

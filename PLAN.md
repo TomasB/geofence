@@ -51,7 +51,7 @@ Follow 12factor.net for best practices
 - [x] Update `cmd/geofence/main.go`: start both REST (port 8080) and gRPC (port 50051) servers concurrently, handle graceful shutdown for both.
 - [x] Update `/ready` endpoint to succeed only when database connection is successfully created, and we are able to access data; return 503 if missing/corrupt.
 - [x] Create K8s manifests in `deployments/k8s/`:
-  - [x] `secret.yaml`: contains sensitive configuration: `MMDB_PATH` (path where init-container downloads MMDB), MaxMind license key/account ID for geoipupdate.
+  - [x] External secrets management: MaxMind license key/account ID stored securely via External Secrets Operator, Sealed Secrets, or Vault (not in secret.yaml).
   - [x] `deployment.yaml`: 3 replicas, init-container will download `GeoLite2-Country.mmdb` to a shared volume location, it will use Kubernetes Secret to retrieve any authentication keys required by MaxMind to access their lite version of database, liveness/readiness probes on `/health` and `/ready`.
   - [x] `service.yaml`: expose port 8080 (REST, ClusterIP) and 50051 (gRPC, ClusterIP).
   - [x] `configmap.yaml`: `LOG_LEVEL=info`, `PORT=8080`, `GRPC_PORT=50051`. Non-sensitive configuration only.
@@ -67,10 +67,10 @@ Follow 12factor.net for best practices
 - [x] Implement directory-level file watcher inside `MmdbReader`: watches parent directory for write/create events on the MMDB file, correctly handles both in-place writes and atomic rename-into-place (geoipupdate, K8s volume mounts). Watcher lifecycle managed internally by `NewMmdbReader`/`Close`.
 - [x] Graceful degradation: if file watcher fails to start, reader still works (hot-reload disabled with warning). If reload fails (corrupt file), old reader stays active.
 - [x] Unit tests: hot-reload with atomic file replacement, failed reload with invalid file preserves old reader.
-- [ ] Create K8s manifest `deployments/k8s/cronjob.yaml`: geoipupdate container runs daily, writes fresh MMDB to shared PVC. MaxMind license key stored in K8s Secret.
-- [ ] Documentation in `docs/database-updates.md`: setup MaxMind credentials, CronJob configuration, verification procedures, rollback mechanism.
+- [x] Create K8s manifest `deployments/k8s/cronjob.yaml`: geoipupdate container runs daily, writes fresh MMDB to shared PVC. MaxMind license key stored in K8s Secret.
+- [x] Documentation in `docs/database-updates.md`: setup MaxMind credentials, CronJob configuration, verification procedures, rollback mechanism.
 
-**Status**: ✅ CORE COMPLETE - Atomic hot-reload fully implemented & tested; K8s CronJob and docs pending
+**Status**: ✅ COMPLETE - Full hot-reload implementation with K8s CronJob automation and comprehensive DevOps documentation
 
 ## Phase 5: Operational Excellence
 

@@ -14,7 +14,8 @@ spec:
     spec:
       volumes:
         - name: mmdb-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: geofence-mmdb-pvc
       initContainers:
         - name: geoipupdate
           image: maxmindinc/geoipupdate:latest
@@ -47,12 +48,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: geofence-config
-          env:
-            - name: MMDB_PATH
-              valueFrom:
-                secretKeyRef:
-                  name: geofence-secret
-                  key: MMDB_PATH
           volumeMounts:
             - name: mmdb-data
               mountPath: /data
