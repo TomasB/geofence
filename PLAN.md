@@ -79,13 +79,13 @@ Follow 12factor.net for best practices
   - Optionally add `tests/load/check-grpc.js` (ghz) for gRPC protocol.
   - Baseline test runs 50 concurrent users for 30s; measures latency histogram and error counts.
 - [x] No need to implementing metrics capturing, like prometheus and/or grafana (intentionally omitted per design)
-- [ ] Documentation in `docs/`:
-  - [ ] Architecture diagram (REST + gRPC + K8s + database update flow)
-  - [ ] API reference (all endpoints, auth requirements, error codes)
-  - [ ] Operational runbooks: database update failure, high latency troubleshooting, pod churn investigation
-  - [ ] On-call troubleshooting guide and escalation procedures
+- [x] Documentation in `docs/`:
+  - [x] Architecture diagram (REST + gRPC + K8s + database update flow) - in docs/architecture.md
+  - [x] API reference (all endpoints, auth requirements, error codes) - in README.md
+  - [x] Operational runbooks: database update failure, high latency troubleshooting, pod churn investigation - in docs/database-updates.md
+  - [x] On-call troubleshooting guide and escalation procedures - in docs/database-updates.md
 
-**Status**: ⏳ PARTIAL - README and PLAN.md complete; load tests, architecture diagrams, and comprehensive operational runbooks not yet implemented
+**Status**: ⏳ PARTIAL - All documentation complete (README, architecture diagram, operational runbooks, API reference); load testing scripts not yet implemented
 
 ## Dependencies
 - Go >= 1.25
