@@ -132,6 +132,38 @@ Example response (IP is from GB, not allowed for US/CA):
 }
 ```
 
+## Make Commands
+
+A `Makefile` is provided for common development and deployment tasks. Run `make help` to see all available commands:
+
+| Command | Description |
+|---------|-------------|
+| `make build` | Build the geofence binary (static Linux binary) |
+| `make run` | Run the service locally with testdata MMDB pre-configured |
+| `make test` | Run all tests with coverage reporting |
+| `make test-unit` | Run unit tests only (fast, excludes integration tests) |
+| `make test-integration` | Run integration tests only |
+| `make coverage` | Generate HTML coverage report |
+| `make fmt` | Format Go code with gofmt |
+| `make vet` | Run go vet for code quality checks |
+| `make clean` | Remove built artifacts and coverage files |
+| `make docker-build` | Build Docker image (requires Docker) |
+| `make docker-run` | Start service via docker-compose (requires Docker) |
+| `make docker-down` | Stop docker-compose services (requires Docker) |
+| `make proto` | Regenerate Go code from .proto files (requires: protoc, protoc-gen-go, protoc-gen-go-grpc) |
+| `make deps-download` | Download Go module dependencies |
+| `make deps-tidy` | Tidy Go module dependencies |
+| `make all` | Full pipeline: fmt, vet, test, and build |
+
+**Example workflow:**
+```bash
+make fmt        # Format code
+make vet        # Check for issues
+make test       # Run tests
+make build      # Build binary
+make docker-build  # Build Docker image
+```
+
 ## Configuration
 
 The service is configured via environment variables following the [12-factor app](https://12factor.net/) methodology:
